@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Percentile Rank Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;600&family=Bebas+Neue&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#06060a;--bg2:#0d0d14;--bg3:#14141f;
+  --border:#1e1e2e;--border2:#2a2a3e;
+  --accent:#7c3aed;--accent2:#06b6d4;
+  --up:#22c55e;--down:#ef4444;
+  --text:#e2e8f0;--muted:#475569;--faint:#1e293b;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--text);font-family:'IBM Plex Mono',monospace;min-height:100vh;font-size:12px;}
+header{padding:14px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--bg2);position:sticky;top:0;z-index:200;}
+.logo{font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:.15em;background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.header-right{display:flex;align-items:center;gap:16px;font-size:10px;color:var(--muted);}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--accent);display:inline-block;margin-right:6px;animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(124,58,237,.4);}50%{opacity:.6;box-shadow:0 0 0 5px rgba(124,58,237,0);}}
+.main{padding:20px 24px;}
+.controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:14px 16px;background:var(--bg2);border:1px solid var(--border);margin-bottom:16px;}
+.btn{background:var(--accent);color:#fff;border:none;font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;letter-spacing:.15em;text-transform:uppercase;padding:8px 20px;cursor:pointer;transition:all .15s;}
+.btn:hover{background:#6d28d9;}
+.btn:disabled{background:var(--muted);cursor:not-allowed;}
+.btn-csv{background:transparent;border:1px solid var(--accent2);color:var(--accent2);}
+.btn-csv:hover{background:rgba(6,182,212,.1);}
+.filter-select,.filter-input{background:var(--bg2);border:1px solid var(--border2);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:10px;padding:5px 8px;outline:none;cursor:pointer;}
+.filter-input{width:180px;cursor:text;}
+.filter-input:focus,.filter-select:focus{border-color:var(--accent2);}
+.results-count{font-size:10px;color:var(--muted);margin-left:auto;}
+.stats-bar{display:flex;margin-bottom:16px;border:1px solid var(--border);display:none;}
+.stats-bar.on{display:flex;}
+.stat{flex:1;padding:10px 14px;border-right:1px solid var(--border);background:var(--bg2);}
+.stat:last-child{border-right:none;}
+.stat-label{font-size:9px;color:var(--muted);letter-spacing:.15em;text-transform:uppercase;margin-bottom:3px;}
+.stat-value{font-size:15px;font-weight:600;}
+.progress-wrap{margin-bottom:16px;display:none;}
+.progress-wrap.on{display:block;}
+.progress-label{font-size:10px;color:var(--muted);letter-spacing:.1em;margin-bottom:6px;display:flex;justify-content:space-between;}
+.progress-bar-bg{background:var(--faint);height:3px;}
+.progress-bar-fill{background:linear-gradient(90deg,var(--accent),var(--accent2));height:3px;width:0%;transition:width .3s;}
+.last-update{font-size:10px;color:var(--muted);padding:6px 0;margin-bottom:8px;}
+.table-wrap{overflow-x:auto;border:1px solid var(--border);}
+table{width:100%;border-collapse:collapse;min-width:900px;}
+thead th{background:var(--bg3);padding:8px 12px;text-align:left;font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap;cursor:pointer;user-select:none;position:sticky;top:0;}
+thead th:hover{color:var(--text);}
+thead th.sorted{color:var(--accent2);}
+tbody tr{border-bottom:1px solid var(--faint);transition:background .1s;}
+tbody tr:hover{background:var(--bg3);}
+tbody td{padding:7px 12px;white-space:nowrap;}
+.td-ticker{font-weight:600;font-size:12px;}
+.td-perf{font-size:11px;font-weight:600;text-align:right;}
+.up{color:var(--up);}.down{color:var(--down);}.flat{color:var(--muted);}
+.td-pct{text-align:right;position:relative;min-width:70px;}
+.pct-bar{position:absolute;top:0;left:0;bottom:0;opacity:.18;}
+.pct-val{position:relative;z-index:1;font-size:11px;font-weight:600;}
+.pct-c9{background:var(--up);}.pct-c8{background:#16a34a;}.pct-c7{background:#65a30d;}
+.pct-c6{background:#ca8a04;}.pct-c5{background:#d97706;}.pct-c4{background:#f97316;}
+.pct-c3{background:#ea580c;}.pct-c2{background:#dc2626;}.pct-c1{background:#b91c1c;}
+.pct-c0{background:var(--down);}
+.tv9,.tv8{color:var(--up);}.tv7,.tv6{color:#a3e635;}.tv5,.tv4{color:#fbbf24;}
+.tv3,.tv2{color:#fb923c;}.tv1,.tv0{color:var(--down);}
+.empty{text-align:center;padding:80px;color:var(--muted);}
+.empty-icon{font-size:40px;opacity:.2;margin-bottom:12px;}
+.empty-title{font-family:'Bebas Neue',sans-serif;font-size:24px;opacity:.3;margin-bottom:6px;}
+.empty-sub{font-size:10px;letter-spacing:.1em;opacity:.4;}
+.row-error td{color:var(--muted);opacity:.4;}
+.err-msg{background:#1a0a0a;border:1px solid var(--down);color:#fca5a5;padding:12px 16px;font-size:11px;margin-bottom:16px;display:none;}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">Percentile Rank</div>
+  <div class="header-right">
+    <span><span class="dot"></span>YAHOO FINANCE</span>
+    <span id="clock">--:--:--</span>
+  </div>
+</header>
+<div class="main">
+
+  <div class="err-msg" id="errMsg"></div>
+
+  <div class="controls">
+    <button class="btn" id="fetchBtn" onclick="startFetch()">▶ LOAD DATA</button>
+    <button class="btn-sm btn btn-csv" onclick="exportCSV()" id="csvBtn" style="display:none">↓ CSV</button>
+    <input class="filter-input" id="searchInput" placeholder="Search ticker..." oninput="renderTable()" style="display:none">
+    <select class="filter-select" id="sortCol" onchange="renderTable()" style="display:none">
+      <option value="pct_1w">Sort: 1W Percentile</option>
+      <option value="pct_4w">Sort: 4W Percentile</option>
+      <option value="pct_20w">Sort: 20W Percentile</option>
+      <option value="pct_52w">Sort: 52W Percentile</option>
+      <option value="ret_1w">Sort: 1W Return</option>
+      <option value="ret_52w">Sort: 52W Return</option>
+      <option value="ticker">Sort: Ticker A-Z</option>
+    </select>
+    <select class="filter-select" id="sortDir" onchange="renderTable()" style="display:none">
+      <option value="desc">↓ Desc</option>
+      <option value="asc">↑ Asc</option>
+    </select>
+    <select class="filter-select" id="pctFilter" onchange="renderTable()" style="display:none">
+      <option value="all">All Percentiles</option>
+      <option value="top10">Top 10% (≥90)</option>
+      <option value="top25">Top 25% (≥75)</option>
+      <option value="bot25">Bottom 25% (≤25)</option>
+      <option value="bot10">Bottom 10% (≤10)</option>
+    </select>
+    <span class="results-count" id="resultsCount"></span>
+  </div>
+
+  <div class="progress-wrap" id="progressWrap">
+    <div class="progress-label">
+      <span id="progressText">...</span>
+      <span id="progressPct">0%</span>
+    </div>
+    <div class="progress-bar-bg"><div class="progress-bar-fill" id="progressFill"></div></div>
+  </div>
+
+  <div class="stats-bar" id="statsBar">
+    <div class="stat"><div class="stat-label">Tickers</div><div class="stat-value" id="statCount">—</div></div>
+    <div class="stat"><div class="stat-label">Top 1W</div><div class="stat-value up" id="statTop1w">—</div></div>
+    <div class="stat"><div class="stat-label">Top 52W</div><div class="stat-value up" id="statTop52w">—</div></div>
+    <div class="stat"><div class="stat-label">Avg 1W</div><div class="stat-value" id="statAvg1w">—</div></div>
+    <div class="stat"><div class="stat-label">% Positif 1W</div><div class="stat-value" id="statPos">—</div></div>
+  </div>
+
+  <div class="last-update" id="lastUpdate"></div>
+
+  <div class="table-wrap">
+    <div class="empty" id="emptyState">
+      <div class="empty-icon">◈</div>
+      <div class="empty-title">No Data</div>
+      <div class="empty-sub">PRESS LOAD DATA TO START</div>
+    </div>
+    <table id="mainTable" style="display:none">
+      <thead>
+        <tr>
+          <th rowspan="2" onclick="setSortCol('ticker')" class="sorted">TICKER ↕</th>
+          <th colspan="4" style="text-align:center;color:var(--accent2);border-left:1px solid var(--border2)">— PERFORMANCE —</th>
+          <th colspan="4" style="text-align:center;color:var(--accent);border-left:1px solid var(--border2)">— PERCENTILE RANK —</th>
+        </tr>
+        <tr>
+          <th onclick="setSortCol('ret_1w')" style="border-left:1px solid var(--border2)">1W ↕</th>
+          <th onclick="setSortCol('ret_4w')">4W AVG ↕</th>
+          <th onclick="setSortCol('ret_20w')">20W AVG ↕</th>
+          <th onclick="setSortCol('ret_52w')">52W AVG ↕</th>
+          <th onclick="setSortCol('pct_1w')" style="border-left:1px solid var(--border2)">1W ↕</th>
+          <th onclick="setSortCol('pct_4w')">4W ↕</th>
+          <th onclick="setSortCol('pct_20w')">20W ↕</th>
+          <th onclick="setSortCol('pct_52w')">52W ↕</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const TICKERS = [...new Set([
+  "PL","SNDK","QS","ONDS","JMIA","APP","WDC","RGTI","LRCX","HL","STX","BABA","CDE","BIDU",
+  "CIEN","SCCO","UUUU","AMAT","QBTS","EOSE","AVAV","ASML","WULF","MRVL","NVMI","KTOS","UEC",
+  "LYFT","IDCC","NBIS","KLAC","CLF","TSM","HIMS","KRMN","STRL","SYM","IREN","MKSI","RMBS",
+  "GLNCY","HOOD","TTMI","GLW","THLLY","IBM","TSEM","NVTS","UI","OKLO","URA","CORZ","MTZ",
+  "COHR","SBSW","CIFR","NGLOY","HUT","CRWV","MU","FIX","CRWD","WBD","CENX","IONS","VRT",
+  "FSLY","BWXT","IESC","MSGS","CCJ","TECK","CW","INTC","PDFS","TSLA","MIAX","JD","SMCI",
+  "BE","SPHR","ZS","OPEN","FSLR","APH","RGC","RCAT","WMB","AEM","LUNR","APLD","PATH","PWR",
+  "ULTA","DELL","CAT","AMKR","K","KGC","NXT","TCEHY","FTNT","LITE","ONTO","APTV","USAR",
+  "IRM","GRAB","NNE","UNH","PDD","LMT","CNC","NVDA","RYCEY","RVMD","IBKR","QUBT","MOH",
+  "NTGR","AEIS","VIAV","LUMN","UHS","EADSY","STM","ASTS","DTM","M","CRARY","TLN","NEM",
+  "DASH","MSGE","PLTR","UTHR","NVT","ENTG","TDY","CRML","HWM","SONO","CRCL","PTCT","MPWR",
+  "LHX","RGLD","OSCR","SAN","BKR","NOK","TEL","ABAT","AAPL","NTES","TPR","HAL","TTWO",
+  "TEM","MOD","ULS","IDEXY","AGI","UMC","MEDP","ES","PANW","BSAC","STLD","VEEV","CRDO",
+  "KEYS","PSN","SMR","ETN","CSX","SOFI","PSTG","CEG","NSC","TXT","GE","SAFRY","RKLB",
+  "IVZ","PCVX","WST","NRG","TER","KMI","URBN","DDOG","WEC","COIN","OTIS","CACI","RIO",
+  "HPE","ESLT","RRC","ELF","B","DRS","ROAD","MPC","SRE","CNX","SATS","ANET","ADDYY",
+  "ISNPY","EXAS","CAIXY","LYG","IONQ","IR","BSM","UNP","SLC","QCOM","TX","BBD","YUM",
+  "VALE","CMI","DUOL","SCGLY","GOOGL","SNPS","EME","THC","SNAP","SMTC","FER","ETR","AA",
+  "WPM","MNST","NEE","NGG","CHTR","UBER","LDOS","ARQQ","FDX","FLEX","RTX","CZR","MCK",
+  "XEL","GSAT","AMD","DOCU","CPNG","BCS","WTW","AAOI","DOCS","GS","VNO","VLO","HCA",
+  "BLK","CC","FOX","AFL","EPR","ARM","LOGI","GSK","ABBV","HUBS","D","WELL","PEGA","GLBE",
+  "FN","CBOE","BYDDY","MRNA","NTRS","HII","EA","O","GFS","CNP","GRMN","LI","LULU","ERIC",
+  "MS","LMND","C","BBY","MP","BEPC","ORCL","WRB","ENVX","ACM","TCOM","SHOP","BNPQY",
+  "IBIT","ALLE","TJX","EVR","SPG","FFIV","LEVI","ORI","CGNX","ETHA","MOS","ELV","W",
+  "VMC","SNOW","QSR","CLS","AOS","MSFT","FTAI","GEV","ASX","FTV","TRP","TKO","J","OSIS",
+  "MGA","VTR","MDLZ","L","AES","PNR","MUFG","ZETA","JCI","BWA","ENB","RL","SPOT","CVNA",
+  "NET","DOCN","MOG.A","CHRW","TMDX","ADBE","GD","WAB","NU","ALB","MET","IBRX","WMT",
+  "XYL","TDOC","FLR","NTAP","CAH","IOT","DLR","ATI","CGEMY","AEE","RVTY","ALAB","CINF",
+  "WWD","OKTA","ITUB","GM","CLX","CRS","ROK","NOC","EQIX","ATO","ONC","SO","PBR","BK",
+  "FANG","FUBO","CHWY","HEI","WSO","KRC","SMFG","RBLX","DB","CVS","FCX","MFG","SOLV",
+  "TRGP","CRH","TRV","OLLI","MCHP","PSX","PLD","TT","SWKS","JPM","BYD","KBCSY","VNOM",
+  "RBRK","ROST","GEHC","JAPAY","SU","MBLY","F","WSM","BIIB","ESE","COR","FTI","ALL",
+  "AUTL","PH","NDSN","OKE","PCAR","RYN","RJF","CDNS","XPO","WFC","TEVA","KALU","AEO",
+  "VST","DD","CB","BAC","CAR","ROL","JNJ","GIS","GTLB","CCI","ICLR","AVGO","GPC","XOM",
+  "AEP","IT","IMO","LH","BBIO","BNTX","CSCO","GH","EXPD","NOW","UBS","DHI","JBL","RIVN",
+  "MMM","MLM","WYNN","TDG","NCLH","PPL","DINO","EXC","DGX","SSNC","HOLX","ARE","PKG",
+  "TRMB","AXP","EGP","COP","HQY","MNDY","MSTR","EMBJ","VICR","RDDT","TS","STT","AXON",
+  "EQT","ORLY","VRSN","WAT","MDB","AMTM","TPL","GL","PEG","RMD","FICO","ARGX","ED","A",
+  "ALNY","CMS","BHP","DUK","IQV","SYY","AVB","EXPE","R","SCHW","SQM","AME","POOL","CME",
+  "BP","REXR","APO","ADSK","MDT","PHM","AJG","SBUX","ZM","FIG","CUBE","AN","BDX","HSY",
+  "NXPI","TOL","EC","CRM","RAIFY","VZ","ISRG","YMM","SKM","GNRC","LEN","IMBBY","EMR",
+  "SHEL","LTC","BXP","LB","TXRH","PYPL","JEF","MSCI","TTD","APG","GDRX","ROOT","HST",
+  "LNG","SOLS","LSEGY","Q","RACE","URI","USB","AL","BRK.B","PCG","ADI","AMZN","QRVO",
+  "BUD","AER","S","VKTX","EBAY","CBRE","DRI","AZO","BG","NTDOY","STE","PSA","EL","LUV",
+  "META","DVN","LLY","AGNC","WDAY","TXN","EXR","OMC","NVR","RKT","ABT","CVX","CNI","EIX",
+  "U","CMC","ORANY","BAM","RPRX","CR","ITW","MELI","REG","PGR","MTB","PBF","SANM","SF",
+  "NGVC","ENPH","LIN","REGN","LTH","INFY","FERG","ESTC","INSM","PVH","INTU","PAA","KKR",
+  "ODFL","EQR","UPS","WM","FAST","ENSG","AIQUY","PLNT","OWL","LINE","MPLX","UA","SIRI",
+  "GILD","CMG","SAP","AMP","OXY","GEO","CG","CROX","KHC","HD","SE","EPD","V","MAR",
+  "CTAS","ARMK","RHHBY","Z","MO","MTSI","VRTX","ALSN","NVS","AMT","ECL","ACGL","DT",
+  "HXL","TRIP","SBAC","HUBB","NFLX","AS","AXSM","RF","MRSH","KEY","UNCRY","LII","KT",
+  "CE","PNC","NVO","GLPI","LOW","DOW","TFC","BRO","MCO","CUZ","ABNB","TTE","DX","HRL",
+  "FITB","INCY","VICI","ILMN","GWRE","COST","DAR","SPSC","GDDY","UGI","COF","SLB","PAYC",
+  "USFD","ZBRA","GFL","COMP","CPRT","ADP","ET","DE","MAS","KMX","PFE","BRBR","LYV","MA",
+  "OHI","PRU","CP","TMO","NUE","ACN","HBAN","AMRZ","PG","PM","DXC","TWLO","VRSK","MMYT",
+  "KVUE","RSG","XYZ","ATAT","GAP","IRDM","AON","AMGN","BRX","CHDN","NTRA","PEP","CI",
+  "IDXX","YUMC","VIK","IDT","MSI","AVO","MKTX","HAS","KR","LAMR","KO","TROW","BKNG",
+  "CHA","LAZ","GPN","CNH","T","CSGP","DHR","HON","AVY","WCN","MCD","CELH","RS","BSY",
+  "NDAQ","FLY","PAG","PTC","HPQ","CTSH","CARR","MTCH","KIM","BA","ZTS","MAA","SYF","LVS",
+  "ALGN","EW","ONON","ADM","WLDN","QXO","MKC","WHR","MTD","BTI","PPG","ROP","GEN","EOG",
+  "KMB","DIS","MTN","TSN","EPAM","FUTU","TGT","TEAM","CART","DOV","BMY","GWW","APD",
+  "CAKE","DXCM","INVH","ANF","MGM","HLT","BJ","ARES","VSAT","SG","CCL","HLN","MRK",
+  "JBHT","STZ","UAL","WLK","AFRM","NKE","CL","BMA","SHW","YPF","DPZ","GGAL","SHAK",
+  "CHD","BBAR","RHP","TMUS","TSCO","PINS","RCL","INGR","UPST","BIRK","BOOT","MAT","FISV",
+  "IFF","FLUT","LEA","FDS","ICE","DAL","SPGI","DG","TOST","CMCSA","DLTR","WING","ETOR",
+  "SYK","PODD","BEN","HUM","TYL","WEN","DKNG","MGNI","BURL","KDP","FOA","CHH","FOUR",
+  "ACI","CAVA","BSX","PAYX","CTVA","DECK","HGV","AAL","EAT","ALK","WGS","SMPL","LMB",
+  "BROS","SFM","VITL"
+])];
+
+let allData = [];
+let isFetching = false;
+let stopRequested = false;
+let sortCol = 'pct_1w';
+let sortDir = 'desc';
+
+setInterval(()=>{
+  document.getElementById('clock').textContent=new Date().toLocaleTimeString('en-US',{hour12:false});
+},1000);
+
+// Yahoo Finance via allorigins proxy (no CORS)
+async function fetchTickerData(ticker) {
+  const to   = Math.floor(Date.now()/1000);
+  const from = to - (365 * 24 * 3600);
+  const url  = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1wk&period1=${from}&period2=${to}`;
+  const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+
+  const resp = await fetch(proxy);
+  const raw  = await resp.json();
+  const data = JSON.parse(raw.contents);
+
+  const closes = data?.chart?.result?.[0]?.indicators?.quote?.[0]?.close;
+  const meta   = data?.chart?.result?.[0]?.meta;
+  if (!closes || closes.length < 2) return null;
+
+  // Filter nulls
+  const prices = closes.filter(p => p != null && p > 0);
+  if (prices.length < 2) return null;
+
+  // Weekly returns
+  const wr = [];
+  for (let i = 1; i < prices.length; i++)
+    wr.push(((prices[i]-prices[i-1])/prices[i-1])*100);
+
+  const n = wr.length;
+  return {
+    ticker,
+    name: meta?.longName || meta?.shortName || ticker,
+    ret_1w:  r2(wr[n-1]),
+    ret_4w:  r2(n>=4  ? avg(wr.slice(-4))  : avg(wr)),
+    ret_20w: r2(n>=20 ? avg(wr.slice(-20)) : avg(wr)),
+    ret_52w: r2(avg(wr)),
+    error: null
+  };
+}
+
+async function startFetch() {
+  if (isFetching) return;
+  isFetching = true;
+  stopRequested = false;
+  allData = [];
+
+  document.getElementById('fetchBtn').disabled = true;
+  document.getElementById('fetchBtn').textContent = '⏳ LOADING...';
+  document.getElementById('progressWrap').classList.add('on');
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('mainTable').style.display = 'table';
+  document.getElementById('statsBar').classList.add('on');
+  ['searchInput','sortCol','sortDir','pctFilter','csvBtn'].forEach(id=>{
+    document.getElementById(id).style.display='';
+  });
+
+  for (let i = 0; i < TICKERS.length; i++) {
+    if (stopRequested) break;
+    const pct = Math.round((i/TICKERS.length)*100);
+    document.getElementById('progressText').textContent =
+      `Fetching ${TICKERS[i]} (${i+1}/${TICKERS.length})...`;
+    document.getElementById('progressPct').textContent = pct+'%';
+    document.getElementById('progressFill').style.width = pct+'%';
+
+    try {
+      const result = await fetchTickerData(TICKERS[i]);
+      if (result) allData.push(result);
+      else allData.push({ticker:TICKERS[i], name:'—', error:true});
+    } catch(e) {
+      allData.push({ticker:TICKERS[i], name:'—', error:true});
+    }
+
+    // Recompute + render every 10 tickers
+    if (i % 10 === 0 || i === TICKERS.length-1) {
+      computePercentiles(allData);
+      renderTable();
+      updateStats();
+    }
+
+    await sleep(150); // Throttle to avoid rate limiting
+  }
+
+  document.getElementById('progressFill').style.width='100%';
+  const loaded = allData.filter(d=>!d.error).length;
+  document.getElementById('progressText').textContent =
+    `✓ Done — ${loaded}/${TICKERS.length} tickers loaded`;
+  document.getElementById('progressPct').textContent='100%';
+  document.getElementById('lastUpdate').textContent =
+    'Last update: ' + new Date().toLocaleString();
+  document.getElementById('fetchBtn').disabled = false;
+  document.getElementById('fetchBtn').textContent = '↻ REFRESH';
+  isFetching = false;
+}
+
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+function avg(arr){return arr.reduce((s,v)=>s+v,0)/arr.length;}
+function r2(v){return v==null?null:Math.round(v*100)/100;}
+
+function computePercentiles(data) {
+  ['ret_1w','ret_4w','ret_20w','ret_52w'].forEach(col=>{
+    const pc = col.replace('ret_','pct_');
+    const vals = data.filter(d=>d[col]!=null&&!d.error).map(d=>d[col]).sort((a,b)=>a-b);
+    const n = vals.length;
+    data.forEach(d=>{
+      if(d[col]==null||d.error){d[pc]=null;return;}
+      const rank=vals.filter(v=>v<d[col]).length;
+      d[pc]=n>1?Math.round((rank/(n-1))*100):50;
+    });
+  });
+}
+
+function renderTable() {
+  const search = document.getElementById('searchInput').value.toLowerCase();
+  const sc = document.getElementById('sortCol').value;
+  const sd = document.getElementById('sortDir').value;
+  const pf = document.getElementById('pctFilter').value;
+  sortCol=sc; sortDir=sd;
+
+  let rows = allData.filter(d=>{
+    if(search&&!d.ticker.toLowerCase().includes(search)&&
+       !(d.name||'').toLowerCase().includes(search)) return false;
+    if(pf!=='all'){
+      const p=d.pct_1w;
+      if(p==null)return false;
+      if(pf==='top10'&&p<90)return false;
+      if(pf==='top25'&&p<75)return false;
+      if(pf==='bot25'&&p>25)return false;
+      if(pf==='bot10'&&p>10)return false;
+    }
+    return true;
+  });
+
+  rows.sort((a,b)=>{
+    let av=a[sc],bv=b[sc];
+    if(av==null)return sd==='desc'?1:-1;
+    if(bv==null)return sd==='desc'?-1:1;
+    if(typeof av==='string')return sd==='asc'?av.localeCompare(bv):bv.localeCompare(av);
+    return sd==='desc'?bv-av:av-bv;
+  });
+
+  document.getElementById('resultsCount').textContent=`${rows.length}/${allData.length} tickers`;
+  const tbody=document.getElementById('tableBody');
+  tbody.innerHTML='';
+  rows.forEach(d=>{
+    const tr=document.createElement('tr');
+    if(d.error)tr.className='row-error';
+    tr.innerHTML=`
+      <td class="td-ticker">${d.ticker}</td>
+      <td class="td-perf ${pc(d.ret_1w)}" style="border-left:1px solid var(--border2)">${fr(d.ret_1w)}</td>
+      <td class="td-perf ${pc(d.ret_4w)}">${fr(d.ret_4w)}</td>
+      <td class="td-perf ${pc(d.ret_20w)}">${fr(d.ret_20w)}</td>
+      <td class="td-perf ${pc(d.ret_52w)}">${fr(d.ret_52w)}</td>
+      <td class="td-pct" style="border-left:1px solid var(--border2)">${pctCell(d.pct_1w)}</td>
+      <td class="td-pct">${pctCell(d.pct_4w)}</td>
+      <td class="td-pct">${pctCell(d.pct_20w)}</td>
+      <td class="td-pct">${pctCell(d.pct_52w)}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function pc(v){return v==null?'flat':v>0?'up':v<0?'down':'flat';}
+function fr(v){
+  if(v==null)return '<span style="color:var(--muted)">—</span>';
+  return (v>0?'+':'')+v.toFixed(2)+'%';
+}
+function pctCell(v){
+  if(v==null)return '<span style="color:var(--muted)">—</span>';
+  const t=Math.min(9,Math.floor(v/10));
+  return `<div style="position:relative;min-width:60px;">
+    <div class="pct-bar pct-c${t}" style="width:${v}%"></div>
+    <span class="pct-val tv${t}">${v}</span>
+  </div>`;
+}
+function setSortCol(col){
+  if(sortCol===col)sortDir=sortDir==='desc'?'asc':'desc';
+  else{sortCol=col;sortDir='desc';}
+  document.getElementById('sortCol').value=col;
+  document.getElementById('sortDir').value=sortDir;
+  renderTable();
+}
+function updateStats(){
+  const v=allData.filter(d=>!d.error&&d.ret_1w!=null);
+  if(!v.length)return;
+  document.getElementById('statCount').textContent=v.length;
+  const t1=[...v].sort((a,b)=>b.ret_1w-a.ret_1w)[0];
+  document.getElementById('statTop1w').textContent=`${t1.ticker} +${t1.ret_1w.toFixed(1)}%`;
+  const t52=[...v].filter(d=>d.ret_52w!=null).sort((a,b)=>b.ret_52w-a.ret_52w)[0];
+  if(t52)document.getElementById('statTop52w').textContent=`${t52.ticker} +${t52.ret_52w.toFixed(1)}%`;
+  const a=v.reduce((s,d)=>s+d.ret_1w,0)/v.length;
+  const el=document.getElementById('statAvg1w');
+  el.textContent=(a>0?'+':'')+a.toFixed(2)+'%';
+  el.style.color=a>0?'var(--up)':'var(--down)';
+  document.getElementById('statPos').textContent=
+    Math.round((v.filter(d=>d.ret_1w>0).length/v.length)*100)+'%';
+}
+function exportCSV(){
+  const h=['Ticker','Name','Ret_1W%','Ret_4W%','Ret_20W%','Ret_52W%','Pct_1W','Pct_4W','Pct_20W','Pct_52W'];
+  const r=allData.map(d=>[d.ticker,d.name||'',d.ret_1w??'',d.ret_4w??'',d.ret_20w??'',d.ret_52w??'',d.pct_1w??'',d.pct_4w??'',d.pct_20w??'',d.pct_52w??'']);
+  const csv=[h,...r].map(x=>x.join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download='percentile_'+new Date().toISOString().split('T')[0]+'.csv';
+  a.click();
+}
+</script>
+</body>
+</html>
